@@ -43,6 +43,16 @@
       to { width: 100%; }
     }
 
+    /* Highlight animation for re-sorting */
+    @keyframes highlight {
+      0% { background-color: #ffff99; }
+      50% { background-color: #ffffff; }
+      100% { background-color: #ffff99; }
+    }
+    .highlight {
+      animation: highlight 2s ease;
+    }
+
     /* Generic modal overlay */
     #modal-overlay {
       position: fixed;
@@ -192,6 +202,22 @@
       background-color: #ddd;
       color: #888;
     }
+    /* Toggle container */
+    #toggle-container {
+      margin-bottom: 10px;
+      font-size: 0.95rem;
+    }
+    #toggle-container label {
+      margin-right: 10px;
+    }
+    /* Summary Buttons - same size */
+    .summary-btn {
+      padding: 8px 12px;
+      font-size: 1rem;
+      height: 40px;
+      line-height: 1.2;
+      margin-left: 5px;
+    }
   </style>
 </head>
 <body>
@@ -213,6 +239,11 @@
   <!-- Step 10: Main exam UI (shown after “START EXAM”) -->
   <div id="exam-container">
     <h2>Exam In Progress</h2>
+    <div id="toggle-container">
+      <span>Re-sort candidates by end time automatically?</span>
+      <label><input type="radio" name="sort-toggle" id="sort-yes" checked> Yes</label>
+      <label><input type="radio" name="sort-toggle" id="sort-no"> No</label>
+    </div>
     <table id="exam-table">
       <thead>
         <tr>
@@ -220,7 +251,7 @@
           <th>Start Time</th>
           <th>End Time</th>
           <th>Rest Breaks (mins)</th>
-          <th>Break Control</th>
+          <th>Rest Break Stopwatch</th>
           <th>Green pen</th>
           <th>End Early</th>
         </tr>
@@ -306,7 +337,8 @@
       </tbody>
     </table>
     <br>
-    <button id="new-exam-btn">Start a new exam</button>
+    <button id="new-exam-btn" class="summary-btn">Start a new exam</button>
+    <button id="print-btn" class="summary-btn">Print summary</button>
   </div>
 
   <script>
@@ -355,14 +387,83 @@
       endMins: null,
       durationMins: null,
       pupilNames: [],
-      pupils: [], // { name, extraPct, hasRest, restMins, baseNoExtra, extra25Mins, extra50Mins, currentEndMins, warnedFlags, breakStart: null, ended: false }
+      pupils: [],
       examStarted: false,
       examEnded: false,
       warningInterval: 1000,
       warningTimer: null,
-      breakLog: [], // { name, start, stop, duration }
-      earlyLog: []  // { name, timestamp }
+      breakLog: [],
+      earlyLog: [],
+      enableResort: true
     };
+
+    // Manage delayed reorder timers
+    const reorderTimers = {};
+    function scheduleReorder(index) {
+      if (!state.enableResort) return;
+      if (reorderTimers[index]) clearTimeout(reorderTimers[index]);
+      const row = document.getElementById(`row-${index}`);
+      if (!row) return;
+      row.classList.add('highlight');
+      reorderTimers[index] = setTimeout(() => {
+        row.classList.remove('highlight');
+        reorderRow(index);
+        delete reorderTimers[index];
+      }, 2000);
+    }
+
+    // Reorder a single row, ensuring ended stay bottom; tie-break on name alphabetically
+    function reorderRow(index) {
+      const tbody = document.querySelector('#exam-table tbody');
+      const row = document.getElementById(`row-${index}`);
+      if (!row) return;
+      const p = state.pupils[index];
+      if (p.ended) {
+        // Move ended to bottom
+        tbody.removeChild(row);
+        tbody.appendChild(row);
+        return;
+      }
+      tbody.removeChild(row);
+      const rows = Array.from(tbody.children);
+      let inserted = false;
+      for (const sibling of rows) {
+        const sibIdx = parseInt(sibling.id.replace('row-', ''), 10);
+        const sibP = state.pupils[sibIdx];
+        if (
+          sibP.ended ||
+          p.currentEndMins < sibP.currentEndMins ||
+          (p.currentEndMins === sibP.currentEndMins && p.name.localeCompare(sibP.name) < 0)
+        ) {
+          tbody.insertBefore(row, sibling);
+          inserted = true;
+          break;
+        }
+      }
+      if (!inserted) tbody.appendChild(row);
+    }
+
+    // Re-sort all rows (non-ended by end time, then alphabetical, then ended)
+    function resortAll() {
+      const tbody = document.querySelector('#exam-table tbody');
+      const entries = state.pupils.map((p, i) => ({ pupil: p, idx: i }));
+      entries.sort((a, b) => {
+        const pA = a.pupil, pB = b.pupil;
+        if (pA.ended && pB.ended) {
+          return pA.name.localeCompare(pB.name);
+        }
+        if (pA.ended) return 1;
+        if (pB.ended) return -1;
+        if (pA.currentEndMins !== pB.currentEndMins) {
+          return pA.currentEndMins - pB.currentEndMins;
+        }
+        return pA.name.localeCompare(pB.name);
+      });
+      entries.forEach(entry => {
+        const row = document.getElementById(`row-${entry.idx}`);
+        if (row) tbody.appendChild(row);
+      });
+    }
 
     // Step 1: Welcome screen (4 sec)
     window.addEventListener('load', () => {
@@ -678,12 +779,21 @@
 
     // Step 10: Exam in progress
     function startExam() {
+      state.enableResort = document.getElementById('sort-yes').checked;
       state.examStarted = true;
       state.examEnded = false;
       populateExamTable();
       document.getElementById('exam-container').style.display = 'block';
       updateClock();
       state.warningTimer = setInterval(updateClock, state.warningInterval);
+
+      document.getElementById('sort-yes').onclick = () => {
+        state.enableResort = true;
+        resortAll();
+      };
+      document.getElementById('sort-no').onclick = () => {
+        state.enableResort = false;
+      };
 
       document.getElementById('end-early-btn').onclick = () => {
         const html = `
@@ -695,9 +805,7 @@
           </div>
         `;
         showModal(html);
-        document.getElementById('btn-back-10').onclick = () => {
-          hideModal();
-        };
+        document.getElementById('btn-back-10').onclick = () => { hideModal(); };
         document.getElementById('btn-confirm-end-early').onclick = () => {
           hideModal();
           endExamEarlyAll();
@@ -708,11 +816,26 @@
     function populateExamTable() {
       const tbody = document.querySelector('#exam-table tbody');
       tbody.innerHTML = '';
-      state.pupils.forEach((p, i) => {
+      const entries = state.pupils.map((p, i) => ({ pupil: p, idx: i }));
+      entries.sort((a, b) => {
+        const pA = a.pupil, pB = b.pupil;
+        if (pA.ended && pB.ended) {
+          return pA.name.localeCompare(pB.name);
+        }
+        if (pA.ended) return 1;
+        if (pB.ended) return -1;
+        if (pA.currentEndMins !== pB.currentEndMins) {
+          return pA.currentEndMins - pB.currentEndMins;
+        }
+        return pA.name.localeCompare(pB.name);
+      });
+      entries.forEach(entry => {
+        const p = entry.pupil;
+        const i = entry.idx;
         const tr = document.createElement('tr');
         tr.id = `row-${i}`;
         if (p.ended) tr.className = 'ended';
-        // Compute end time including rest
+
         if (!p.ended) {
           if (p.extraPct === 50) {
             p.currentEndMins = p.baseNoExtra + p.extra50Mins + (p.hasRest ? p.restMins : 0);
@@ -722,12 +845,14 @@
             p.currentEndMins = p.baseNoExtra + (p.hasRest ? p.restMins : 0);
           }
         }
+
         const green25Time = p.baseNoExtra + (p.hasRest ? p.restMins : 0);
         const green50Time = p.baseNoExtra + p.extra25Mins + (p.hasRest ? p.restMins : 0);
         const greenParts = [];
         if (p.extraPct >= 25) greenParts.push(`25%: ${formatHHMM(green25Time)}`);
         if (p.extraPct >= 50) greenParts.push(`50%: ${formatHHMM(green50Time)}`);
         const greenCell = greenParts.join(', ');
+
         tr.innerHTML = `
           <td>${p.name}</td>
           <td>${formatHHMM(state.startMins)}</td>
@@ -753,7 +878,6 @@
         tbody.appendChild(tr);
 
         if (!p.ended) {
-          // Attach End Early for individual pupil
           document.getElementById(`end-early-${i}`).onclick = () => {
             const html = `
               <h2>End Exam for ${p.name}?</h2>
@@ -764,9 +888,7 @@
               </div>
             `;
             showModal(html);
-            document.getElementById(`btn-back-end-${i}`).onclick = () => {
-              hideModal();
-            };
+            document.getElementById(`btn-back-end-${i}`).onclick = () => { hideModal(); };
             document.getElementById(`btn-confirm-end-${i}`).onclick = () => {
               hideModal();
               markPupilEnded(i, true);
@@ -774,7 +896,6 @@
           };
 
           if (p.hasRest) {
-            // Manual rest input
             document.getElementById(`rest-input-${i}`).addEventListener('input', e => {
               const val = parseInt(e.target.value, 10);
               p.restMins = isNaN(val) || val < 0 ? 0 : val;
@@ -791,14 +912,13 @@
               if (p.extraPct >= 50) parts.push(`50%: ${formatHHMM(g50)}`);
               document.getElementById(`green-${i}`).textContent = parts.join(', ');
               p.warnedFlags = { end: false, green25: false, green50: false, stop: false };
+              scheduleReorder(i);
             });
-            // Break START listener
             document.getElementById(`break-start-${i}`).onclick = () => {
               p.breakStart = new Date();
               document.getElementById(`break-start-${i}`).disabled = true;
               document.getElementById(`break-stop-${i}`).disabled = false;
             };
-            // Break STOP listener
             document.getElementById(`break-stop-${i}`).onclick = () => {
               if (!p.breakStart) return;
               const now = new Date();
@@ -814,10 +934,10 @@
               document.getElementById(`end-${i}`).textContent = formatHHMM(p.currentEndMins);
               const g25 = p.baseNoExtra + p.restMins;
               const g50 = p.baseNoExtra + p.extra25Mins + p.restMins;
-              const parts = [];
-              if (p.extraPct >= 25) parts.push(`25%: ${formatHHMM(g25)}`);
-              if (p.extraPct >= 50) parts.push(`50%: ${formatHHMM(g50)}`);
-              document.getElementById(`green-${i}`).textContent = parts.join(', ');
+              const parts2 = [];
+              if (p.extraPct >= 25) parts2.push(`25%: ${formatHHMM(g25)}`);
+              if (p.extraPct >= 50) parts2.push(`50%: ${formatHHMM(g50)}`);
+              document.getElementById(`green-${i}`).textContent = parts2.join(', ');
               p.warnedFlags = { end: false, green25: false, green50: false, stop: false };
               const startTime = formatHHMM(p.breakStart.getHours() * 60 + p.breakStart.getMinutes());
               const stopTime = formatHHMM(now.getHours() * 60 + now.getMinutes());
@@ -828,6 +948,7 @@
               document.getElementById(`break-start-${i}`).disabled = false;
               document.getElementById(`break-stop-${i}`).disabled = true;
               document.getElementById(`break-display-${i}`).textContent = '00:00';
+              scheduleReorder(i);
             };
           } else {
             document.getElementById(`break-start-${i}`).disabled = true;
@@ -838,7 +959,6 @@
       });
     }
 
-    // Append a row to the break log table in the exam UI
     function appendBreakLogEntry(name, start, stop, duration) {
       const tbody = document.querySelector('#break-log-table tbody');
       const tr = document.createElement('tr');
@@ -851,7 +971,6 @@
       tbody.appendChild(tr);
     }
 
-    // Append a row to the early end table in the exam UI
     function appendEarlyEndEntry(name, timestamp) {
       const tbody = document.querySelector('#early-end-table tbody');
       const tr = document.createElement('tr');
@@ -862,7 +981,6 @@
       tbody.appendChild(tr);
     }
 
-    // Mark pupil as ended. If isEarly=true, record early timestamp.
     function markPupilEnded(index, isEarly = false) {
       const p = state.pupils[index];
       if (p.ended) return;
@@ -887,7 +1005,6 @@
       }
     }
 
-    // Mark all pupils ended early (used by top-level END EXAM EARLY)
     function endExamEarlyAll() {
       state.pupils.forEach((p, i) => { if (!p.ended) markPupilEnded(i, true); });
       state.examEnded = true;
@@ -896,7 +1013,6 @@
       showSummary();
     }
 
-    // Live clock + reminders + stopwatch updates
     function updateClock() {
       const now = new Date();
       const hh = now.getHours(),
@@ -966,16 +1082,12 @@
         const active = state.pupils.some(p => !p.ended);
         if (!active) {
           state.examEnded = true;
-          setTimeout(() => {
-            alert('The exam has ended');
-            showSummary();
-          }, 0);
+          setTimeout(() => { alert('The exam has ended'); showSummary(); }, 0);
           clearInterval(state.warningTimer);
         }
       }
     }
 
-    // Step 12: Show summary
     function showSummary() {
       document.getElementById('exam-container').style.display = 'none';
       const tbody = document.querySelector('#summary-table tbody');
@@ -1026,9 +1138,13 @@
           warningInterval: 1000,
           warningTimer: null,
           breakLog: [],
-          earlyLog: []
+          earlyLog: [],
+          enableResort: true
         };
         step2();
+      };
+      document.getElementById('print-btn').onclick = () => {
+        window.print();
       };
     }
   </script>
