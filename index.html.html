@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>King’s College School LE Invigilation Calculator</title>
+  <style>
+    /* Full-screen welcome screen */
+    #welcome {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: #f5f5f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      font-family: sans-serif;
+      font-size: 2rem;
+      z-index: 1000;
+    }
+    #welcome-sub {
+      font-size: 1rem;
+      margin-top: 10px;
+    }
+    /* Loading bar container */
+    #loading-bar-container {
+      width: 80%;
+      background: #ddd;
+      height: 8px;
+      border-radius: 4px;
+      margin-top: 20px;
+      overflow: hidden;
+    }
+    #loading-bar {
+      width: 0;
+      height: 100%;
+      background: #333;
+      animation: load 4s linear forwards;
+    }
+    @keyframes load {
+      to { width: 100%; }
+    }
+
+    /* Generic modal overlay */
+    #modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1001;
+    }
+    .modal {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      font-family: sans-serif;
+    }
+    .modal h2 {
+      margin-top: 0;
+      font-size: 1.25rem;
+    }
+    .modal .buttons {
+      margin-top: 1rem;
+      text-align: right;
+    }
+    .modal .buttons button {
+      margin-left: 0.5rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+    }
+    .modal table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.5rem;
+    }
+    .modal table th,
+    .modal table td {
+      border: 1px solid #ddd;
+      padding: 6px;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+    .modal table th {
+      background: #f0f0f0;
+    }
+    .radio-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    /* Main exam UI (hidden until step 9) */
+    #exam-container {
+      display: none;
+      padding: 20px;
+      font-family: sans-serif;
+    }
+    #exam-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    #exam-table th,
+    #exam-table td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+    #exam-table th {
+      background: #f0f0f0;
+    }
+    #break-log-table, #early-end-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    #break-log-table th, #break-log-table td,
+    #early-end-table th, #early-end-table td {
+      border: 1px solid #ccc;
+      padding: 6px;
+      font-size: 0.95rem;
+      text-align: left;
+    }
+    #break-log-table th, #early-end-table th {
+      background: #e0e0e0;
+    }
+    #clock {
+      margin-top: 20px;
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+    #end-early-btn {
+      margin-top: 10px;
+      padding: 8px 12px;
+      font-size: 1rem;
+    }
+
+    /* Summary screen (shown after exam ends) */
+    #summary-container {
+      display: none;
+      padding: 20px;
+      font-family: sans-serif;
+    }
+    #summary-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    #summary-table th,
+    #summary-table td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      font-size: 0.95rem;
+      text-align: left;
+    }
+    #summary-table th {
+      background: #f0f0f0;
+    }
+    #summary-break-log, #summary-early-end-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    #summary-break-log th, #summary-break-log td,
+    #summary-early-end-table th, #summary-early-end-table td {
+      border: 1px solid #ccc;
+      padding: 6px;
+      font-size: 0.95rem;
+      text-align: left;
+    }
+    #summary-break-log th, #summary-early-end-table th {
+      background: #e0e0e0;
+    }
+    .break-button {
+      margin-right: 4px;
+      padding: 4px 8px;
+      font-size: 0.9rem;
+    }
+    .stopwatch {
+      font-family: monospace;
+      margin-left: 8px;
+    }
+    .ended {
+      background-color: #ddd;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. Welcome screen -->
+  <div id="welcome">
+    King’s College School LE Invigilation Calculator
+    <div id="welcome-sub">An experimental tool by RJG - use with caution!</div>
+    <div id="loading-bar-container"><div id="loading-bar"></div></div>
+  </div>
+
+  <!-- Generic modal container -->
+  <div id="modal-overlay">
+    <div class="modal" id="modal-content">
+      <!-- Content injected dynamically -->
+    </div>
+  </div>
+
+  <!-- Step 10: Main exam UI (shown after “START EXAM”) -->
+  <div id="exam-container">
+    <h2>Exam In Progress</h2>
+    <table id="exam-table">
+      <thead>
+        <tr>
+          <th>Pupil Name</th>
+          <th>Start Time</th>
+          <th>End Time</th>
+          <th>Rest Breaks (mins)</th>
+          <th>Break Control</th>
+          <th>Green pen</th>
+          <th>End Early</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Populated dynamically -->
+      </tbody>
+    </table>
+    <!-- Break Log Table -->
+    <h3>Break Log</h3>
+    <table id="break-log-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Start</th>
+          <th>Stop</th>
+          <th>Duration</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Populated dynamically -->
+      </tbody>
+    </table>
+    <!-- Early End Times Table -->
+    <h3>Early End Times</h3>
+    <table id="early-end-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Timestamp</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Populated dynamically -->
+      </tbody>
+    </table>
+    <button id="end-early-btn">END EXAM EARLY</button>
+    <div id="clock"></div>
+  </div>
+
+  <!-- Step 12: Summary screen (shown after exam ends) -->
+  <div id="summary-container">
+    <h2>Exam Summary</h2>
+    <table id="summary-table">
+      <thead>
+        <tr>
+          <th>Pupil Name</th>
+          <th>Start Time</th>
+          <th>Final End Time</th>
+          <th>Rest Breaks (mins)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Populated dynamically -->
+      </tbody>
+    </table>
+    <!-- Summary Break Log -->
+    <h3>Break Log</h3>
+    <table id="summary-break-log">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Start</th>
+          <th>Stop</th>
+          <th>Duration</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Populated dynamically -->
+      </tbody>
+    </table>
+    <!-- Summary Early End Times -->
+    <h3>Early End Times</h3>
+    <table id="summary-early-end-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Timestamp</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Populated dynamically -->
+      </tbody>
+    </table>
+    <br>
+    <button id="new-exam-btn">Start a new exam</button>
+  </div>
+
+  <script>
+    // Utility: format minutes-since-midnight as “HH:MM”
+    function formatHHMM(totalMins) {
+      totalMins = ((totalMins % 1440) + 1440) % 1440;
+      const h = Math.floor(totalMins / 60),
+            m = totalMins % 60;
+      return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    }
+
+    // Format elapsed seconds as MM:SS
+    function formatMMSS(totalSecs) {
+      const m = Math.floor(totalSecs / 60);
+      const s = totalSecs % 60;
+      return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+
+    // Parse separators (commas, line breaks, tabs)
+    function parseNames(text) {
+      return text.split(/[\n,\t]+/).map(s => s.trim()).filter(s => s.length > 0);
+    }
+
+    // Parse “HH:MM” into minutes-since-midnight
+    function parseHHMM(hhmm) {
+      const parts = hhmm.split(':');
+      if (parts.length !== 2) return NaN;
+      const h = parseInt(parts[0], 10),
+            m = parseInt(parts[1], 10);
+      if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) return NaN;
+      return h * 60 + m;
+    }
+
+    // Show a custom modal (innerHTML = contentHTML)
+    function showModal(contentHTML) {
+      document.getElementById('modal-content').innerHTML = contentHTML;
+      document.getElementById('modal-overlay').style.display = 'flex';
+    }
+    function hideModal() {
+      document.getElementById('modal-overlay').style.display = 'none';
+    }
+
+    // Global state
+    let state = {
+      startMins: null,
+      endMins: null,
+      durationMins: null,
+      pupilNames: [],
+      pupils: [], // { name, extraPct, hasRest, restMins, baseNoExtra, extra25Mins, extra50Mins, currentEndMins, warnedFlags, breakStart: null, ended: false }
+      examStarted: false,
+      examEnded: false,
+      warningInterval: 1000,
+      warningTimer: null,
+      breakLog: [], // { name, start, stop, duration }
+      earlyLog: []  // { name, timestamp }
+    };
+
+    // Step 1: Welcome screen (4 sec)
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        document.getElementById('welcome').style.display = 'none';
+        step2();
+      }, 4000);
+    });
+
+    // Step 2: Enter start time (no BACK)
+    function step2() {
+      const html = `
+        <h2>Enter Start Time</h2>
+        <input type="time" id="input-start" style="width:100%; font-size:1rem;" />
+        <div class="buttons">
+          <button id="btn-start-ok">OK</button>
+        </div>
+      `;
+      showModal(html);
+      const input = document.getElementById('input-start');
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('btn-start-ok').click();
+      });
+      document.getElementById('btn-start-ok').onclick = () => {
+        const val = document.getElementById('input-start').value;
+        const mins = parseHHMM(val);
+        if (isNaN(mins)) {
+          alert('Please enter a valid HH:MM time.');
+          return;
+        }
+        state.startMins = mins;
+        hideModal();
+        step3();
+      };
+    }
+
+    // Step 3: Enter end time (with BACK)
+    function step3() {
+      const html = `
+        <h2>Enter End Time</h2>
+        <input type="time" id="input-end" style="width:100%; font-size:1rem;" />
+        <div class="buttons">
+          <button id="btn-back-3">BACK</button>
+          <button id="btn-end-ok">OK</button>
+        </div>
+      `;
+      showModal(html);
+      const input = document.getElementById('input-end');
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('btn-end-ok').click();
+      });
+      document.getElementById('btn-back-3').onclick = () => {
+        hideModal();
+        step2();
+      };
+      document.getElementById('btn-end-ok').onclick = () => {
+        const val = document.getElementById('input-end').value;
+        const mins = parseHHMM(val);
+        if (isNaN(mins)) {
+          alert('Please enter a valid HH:MM time.');
+          return;
+        }
+        if (mins <= state.startMins) {
+          alert('End time must be later than start time.');
+          return;
+        }
+        state.endMins = mins;
+        state.durationMins = state.endMins - state.startMins;
+        hideModal();
+        step4();
+      };
+    }
+
+    // Step 4: Confirm times (with BACK)
+    function step4() {
+      const duration = state.durationMins;
+      const html = `
+        <h2>Confirm Times</h2>
+        <p>Start: <strong>${formatHHMM(state.startMins)}</strong><br/>
+        End: <strong>${formatHHMM(state.endMins)}</strong><br/>
+        Duration: <strong>${duration} minutes</strong></p>
+        <div class="buttons">
+          <button id="btn-back-4">BACK</button>
+          <button id="btn-confirm-4">CONFIRM</button>
+        </div>
+      `;
+      showModal(html);
+      document.getElementById('btn-back-4').onclick = () => {
+        hideModal();
+        step2();
+      };
+      document.getElementById('btn-confirm-4').onclick = () => {
+        hideModal();
+        step5();
+      };
+    }
+
+    // Step 5: Enter pupil names (with BACK)
+    function step5() {
+      const html = `
+        <h2>Enter Pupil Names</h2>
+        <textarea id="input-names" rows="4" style="width:100%; font-size:1rem;" placeholder="Separate names by commas, line breaks, or tabs"></textarea>
+        <div class="buttons">
+          <button id="btn-back-5">BACK</button>
+          <button id="btn-names-ok" disabled>OK</button>
+        </div>
+      `;
+      showModal(html);
+      const textarea = document.getElementById('input-names');
+      const okBtn = document.getElementById('btn-names-ok');
+      textarea.addEventListener('input', () => {
+        okBtn.disabled = textarea.value.trim().length === 0;
+      });
+      document.getElementById('btn-back-5').onclick = () => {
+        hideModal();
+        step4();
+      };
+      okBtn.onclick = () => {
+        const text = textarea.value.trim();
+        const names = parseNames(text);
+        if (names.length === 0) {
+          alert('Please enter at least one valid name.');
+          return;
+        }
+        state.pupilNames = names;
+        state.pupils = names.map(name => ({
+          name,
+          extraPct: null,
+          hasRest: null,
+          restMins: 0,
+          baseNoExtra: null,
+          extra25Mins: null,
+          extra50Mins: null,
+          currentEndMins: null,
+          warnedFlags: { end: false, green25: false, green50: false, stop: false },
+          breakStart: null,
+          ended: false
+        }));
+        hideModal();
+        step6();
+      };
+    }
+
+    // Step 6: EXTRA TIME with radio tick-boxes (with BACK)
+    function step6() {
+      let rows = '';
+      state.pupils.forEach((p, i) => {
+        rows += `
+          <tr>
+            <td>${p.name}</td>
+            <td class="radio-group">
+              <label><input type="radio" name="extra-${i}" value="0" checked> No extra time</label>
+              <label><input type="radio" name="extra-${i}" value="25"> 25% extra</label>
+              <label><input type="radio" name="extra-${i}" value="50"> 50% extra</label>
+            </td>
+          </tr>
+        `;
+      });
+      const html = `
+        <h2>EXTRA TIME</h2>
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Options</th></tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <div class="buttons">
+          <button id="btn-back-6">BACK</button>
+          <button id="btn-extra-ok">OK</button>
+        </div>
+      `;
+      showModal(html);
+      document.getElementById('btn-back-6').onclick = () => {
+        hideModal();
+        step5();
+      };
+      document.getElementById('btn-extra-ok').onclick = () => {
+        state.pupils.forEach((p, i) => {
+          p.extraPct = parseInt(document.querySelector(`input[name=extra-${i}]:checked`).value, 10);
+        });
+        hideModal();
+        step7();
+      };
+    }
+
+    // Step 7: REST BREAKS with radio tick-boxes (with BACK)
+    function step7() {
+      let rows = '';
+      state.pupils.forEach((p, i) => {
+        rows += `
+          <tr>
+            <td>${p.name}</td>
+            <td class="radio-group">
+              <label><input type="radio" name="rest-${i}" value="no"> Does not have rest breaks</label>
+              <label><input type="radio" name="rest-${i}" value="yes" checked> Has rest breaks</label>
+            </td>
+          </tr>
+        `;
+      });
+      const html = `
+        <h2>REST BREAKS</h2>
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Options</th></tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <div class="buttons">
+          <button id="btn-back-7">BACK</button>
+          <button id="btn-rest-ok">OK</button>
+        </div>
+      `;
+      showModal(html);
+      document.getElementById('btn-back-7').onclick = () => {
+        hideModal();
+        step6();
+      };
+      document.getElementById('btn-rest-ok').onclick = () => {
+        state.pupils.forEach((p, i) => {
+          p.hasRest = (document.querySelector(`input[name=rest-${i}]:checked`).value === 'yes');
+          p.restMins = 0;
+        });
+        hideModal();
+        step8();
+      };
+    }
+
+    // Step 8: Confirm end times including extra time (with BACK)
+    function step8() {
+      state.pupils.forEach(p => {
+        const dur = state.durationMins;
+        p.baseNoExtra = state.startMins + dur;
+        p.extra25Mins = Math.round(dur * 0.25);
+        p.extra50Mins = Math.round(dur * 0.50);
+        if (p.extraPct === 50) {
+          p.currentEndMins = p.baseNoExtra + p.extra50Mins;
+        } else if (p.extraPct === 25) {
+          p.currentEndMins = p.baseNoExtra + p.extra25Mins;
+        } else {
+          p.currentEndMins = p.baseNoExtra;
+        }
+        p.warnedFlags = { end: false, green25: false, green50: false, stop: false };
+        p.breakStart = null;
+        p.ended = false;
+      });
+
+      let rows = '';
+      state.pupils.forEach(p => {
+        const restText = p.hasRest ? 'Has rest breaks' : 'Does not have rest breaks';
+        rows += `
+          <tr>
+            <td>${p.name}</td>
+            <td>${formatHHMM(state.startMins)}</td>
+            <td>${formatHHMM(p.currentEndMins)}</td>
+            <td>${restText}</td>
+          </tr>
+        `;
+      });
+      const html = `
+        <h2>Confirm Individual End Times (Including Extra Time)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Start Time</th>
+              <th>End Time</th>
+              <th>Rest Breaks?</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <div class="buttons">
+          <button id="btn-back-8">BACK</button>
+          <button id="btn-confirm-8">CONFIRM</button>
+        </div>
+      `;
+      showModal(html);
+      document.getElementById('btn-back-8').onclick = () => {
+        hideModal();
+        step7();
+      };
+      document.getElementById('btn-confirm-8').onclick = () => {
+        hideModal();
+        step9();
+      };
+    }
+
+    // Step 9: “Click below to start the exam” (with BACK)
+    function step9() {
+      const html = `
+        <h2>Click below to start the exam</h2>
+        <div class="buttons">
+          <button id="btn-back-9">BACK</button>
+          <button id="btn-start-exam">START</button>
+        </div>
+      `;
+      showModal(html);
+      document.getElementById('btn-back-9').onclick = () => {
+        hideModal();
+        step8();
+      };
+      document.getElementById('btn-start-exam').onclick = () => {
+        hideModal();
+        startExam();
+      };
+    }
+
+    // Step 10: Exam in progress
+    function startExam() {
+      state.examStarted = true;
+      state.examEnded = false;
+      populateExamTable();
+      document.getElementById('exam-container').style.display = 'block';
+      updateClock();
+      state.warningTimer = setInterval(updateClock, state.warningInterval);
+
+      document.getElementById('end-early-btn').onclick = () => {
+        const html = `
+          <h2>End Exam Early?</h2>
+          <p>This will end the exam for all pupils. Are you sure?</p>
+          <div class="buttons">
+            <button id="btn-back-10">BACK</button>
+            <button id="btn-confirm-end-early">YES</button>
+          </div>
+        `;
+        showModal(html);
+        document.getElementById('btn-back-10').onclick = () => {
+          hideModal();
+        };
+        document.getElementById('btn-confirm-end-early').onclick = () => {
+          hideModal();
+          endExamEarlyAll();
+        };
+      };
+    }
+
+    function populateExamTable() {
+      const tbody = document.querySelector('#exam-table tbody');
+      tbody.innerHTML = '';
+      state.pupils.forEach((p, i) => {
+        const tr = document.createElement('tr');
+        tr.id = `row-${i}`;
+        if (p.ended) tr.className = 'ended';
+        // Compute end time including rest
+        if (!p.ended) {
+          if (p.extraPct === 50) {
+            p.currentEndMins = p.baseNoExtra + p.extra50Mins + (p.hasRest ? p.restMins : 0);
+          } else if (p.extraPct === 25) {
+            p.currentEndMins = p.baseNoExtra + p.extra25Mins + (p.hasRest ? p.restMins : 0);
+          } else {
+            p.currentEndMins = p.baseNoExtra + (p.hasRest ? p.restMins : 0);
+          }
+        }
+        const green25Time = p.baseNoExtra + (p.hasRest ? p.restMins : 0);
+        const green50Time = p.baseNoExtra + p.extra25Mins + (p.hasRest ? p.restMins : 0);
+        const greenParts = [];
+        if (p.extraPct >= 25) greenParts.push(`25%: ${formatHHMM(green25Time)}`);
+        if (p.extraPct >= 50) greenParts.push(`50%: ${formatHHMM(green50Time)}`);
+        const greenCell = greenParts.join(', ');
+        tr.innerHTML = `
+          <td>${p.name}</td>
+          <td>${formatHHMM(state.startMins)}</td>
+          <td id="end-${i}">${formatHHMM(p.currentEndMins)}</td>
+          <td>
+            <input
+              type="number"
+              id="rest-input-${i}"
+              value="${p.restMins}"
+              min="0"
+              style="width: 60px;"
+              ${p.hasRest && !p.ended ? '' : 'disabled'}
+            />
+          </td>
+          <td>
+            <button class="break-button" id="break-start-${i}" ${p.ended ? 'disabled' : ''}>START</button>
+            <button class="break-button" id="break-stop-${i}" disabled>STOP</button>
+            <span class="stopwatch" id="break-display-${i}">${p.breakStart ? formatMMSS(Math.floor((new Date() - p.breakStart)/1000)) : '00:00'}</span>
+          </td>
+          <td id="green-${i}">${greenCell}</td>
+          <td>${p.ended ? '' : `<button id="end-early-${i}">End Early</button>`}</td>
+        `;
+        tbody.appendChild(tr);
+
+        if (!p.ended) {
+          // Attach End Early for individual pupil
+          document.getElementById(`end-early-${i}`).onclick = () => {
+            const html = `
+              <h2>End Exam for ${p.name}?</h2>
+              <p>This will end the exam for ${p.name}. Are you sure?</p>
+              <div class="buttons">
+                <button id="btn-back-end-${i}">BACK</button>
+                <button id="btn-confirm-end-${i}">YES</button>
+              </div>
+            `;
+            showModal(html);
+            document.getElementById(`btn-back-end-${i}`).onclick = () => {
+              hideModal();
+            };
+            document.getElementById(`btn-confirm-end-${i}`).onclick = () => {
+              hideModal();
+              markPupilEnded(i, true);
+            };
+          };
+
+          if (p.hasRest) {
+            // Manual rest input
+            document.getElementById(`rest-input-${i}`).addEventListener('input', e => {
+              const val = parseInt(e.target.value, 10);
+              p.restMins = isNaN(val) || val < 0 ? 0 : val;
+              p.currentEndMins = p.extraPct === 50
+                ? p.baseNoExtra + p.extra50Mins + p.restMins
+                : p.extraPct === 25
+                  ? p.baseNoExtra + p.extra25Mins + p.restMins
+                  : p.baseNoExtra + p.restMins;
+              document.getElementById(`end-${i}`).textContent = formatHHMM(p.currentEndMins);
+              const g25 = p.baseNoExtra + p.restMins;
+              const g50 = p.baseNoExtra + p.extra25Mins + p.restMins;
+              const parts = [];
+              if (p.extraPct >= 25) parts.push(`25%: ${formatHHMM(g25)}`);
+              if (p.extraPct >= 50) parts.push(`50%: ${formatHHMM(g50)}`);
+              document.getElementById(`green-${i}`).textContent = parts.join(', ');
+              p.warnedFlags = { end: false, green25: false, green50: false, stop: false };
+            });
+            // Break START listener
+            document.getElementById(`break-start-${i}`).onclick = () => {
+              p.breakStart = new Date();
+              document.getElementById(`break-start-${i}`).disabled = true;
+              document.getElementById(`break-stop-${i}`).disabled = false;
+            };
+            // Break STOP listener
+            document.getElementById(`break-stop-${i}`).onclick = () => {
+              if (!p.breakStart) return;
+              const now = new Date();
+              const diffMs = now - p.breakStart;
+              const diffMins = Math.round(diffMs / 60000);
+              p.restMins += diffMins;
+              document.getElementById(`rest-input-${i}`).value = p.restMins;
+              p.currentEndMins = p.extraPct === 50
+                ? p.baseNoExtra + p.extra50Mins + p.restMins
+                : p.extraPct === 25
+                  ? p.baseNoExtra + p.extra25Mins + p.restMins
+                  : p.baseNoExtra + p.restMins;
+              document.getElementById(`end-${i}`).textContent = formatHHMM(p.currentEndMins);
+              const g25 = p.baseNoExtra + p.restMins;
+              const g50 = p.baseNoExtra + p.extra25Mins + p.restMins;
+              const parts = [];
+              if (p.extraPct >= 25) parts.push(`25%: ${formatHHMM(g25)}`);
+              if (p.extraPct >= 50) parts.push(`50%: ${formatHHMM(g50)}`);
+              document.getElementById(`green-${i}`).textContent = parts.join(', ');
+              p.warnedFlags = { end: false, green25: false, green50: false, stop: false };
+              const startTime = formatHHMM(p.breakStart.getHours() * 60 + p.breakStart.getMinutes());
+              const stopTime = formatHHMM(now.getHours() * 60 + now.getMinutes());
+              const durationText = `${diffMins} mins`;
+              state.breakLog.push({ name: p.name, start: startTime, stop: stopTime, duration: durationText });
+              appendBreakLogEntry(p.name, startTime, stopTime, durationText);
+              p.breakStart = null;
+              document.getElementById(`break-start-${i}`).disabled = false;
+              document.getElementById(`break-stop-${i}`).disabled = true;
+              document.getElementById(`break-display-${i}`).textContent = '00:00';
+            };
+          } else {
+            document.getElementById(`break-start-${i}`).disabled = true;
+            document.getElementById(`break-stop-${i}`).disabled = true;
+          }
+          p.warnedFlags = { end: false, green25: false, green50: false, stop: false };
+        }
+      });
+    }
+
+    // Append a row to the break log table in the exam UI
+    function appendBreakLogEntry(name, start, stop, duration) {
+      const tbody = document.querySelector('#break-log-table tbody');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${name}</td>
+        <td>${start}</td>
+        <td>${stop}</td>
+        <td>${duration}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    // Append a row to the early end table in the exam UI
+    function appendEarlyEndEntry(name, timestamp) {
+      const tbody = document.querySelector('#early-end-table tbody');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${name}</td>
+        <td>${timestamp}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    // Mark pupil as ended. If isEarly=true, record early timestamp.
+    function markPupilEnded(index, isEarly = false) {
+      const p = state.pupils[index];
+      if (p.ended) return;
+      p.ended = true;
+      const row = document.getElementById(`row-${index}`);
+      if (!row) return;
+      row.classList.add('ended');
+      const restInput = row.querySelector(`#rest-input-${index}`);
+      if (restInput) restInput.disabled = true;
+      const breakStartBtn = row.querySelector(`#break-start-${index}`);
+      if (breakStartBtn) breakStartBtn.disabled = true;
+      const breakStopBtn = row.querySelector(`#break-stop-${index}`);
+      if (breakStopBtn) breakStopBtn.disabled = true;
+      const endEarlyBtn = row.querySelector(`#end-early-${index}`);
+      if (endEarlyBtn) endEarlyBtn.remove();
+      row.parentNode.appendChild(row);
+      if (isEarly) {
+        const now = new Date();
+        const ts = formatHHMM(now.getHours() * 60 + now.getMinutes());
+        state.earlyLog.push({ name: p.name, timestamp: ts });
+        appendEarlyEndEntry(p.name, ts);
+      }
+    }
+
+    // Mark all pupils ended early (used by top-level END EXAM EARLY)
+    function endExamEarlyAll() {
+      state.pupils.forEach((p, i) => { if (!p.ended) markPupilEnded(i, true); });
+      state.examEnded = true;
+      clearInterval(state.warningTimer);
+      alert('The exam has ended');
+      showSummary();
+    }
+
+    // Live clock + reminders + stopwatch updates
+    function updateClock() {
+      const now = new Date();
+      const hh = now.getHours(),
+            mm = now.getMinutes(),
+            ss = now.getSeconds();
+      document.getElementById('clock').textContent =
+        `Current time: ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+
+      if (!state.examEnded) {
+        const nowMins = hh * 60 + mm;
+        state.pupils.forEach((p, i) => {
+          if (p.ended) return;
+          const disp = document.getElementById(`break-display-${i}`);
+          if (p.breakStart) {
+            const diffSecs = Math.floor((new Date() - p.breakStart) / 1000);
+            disp.textContent = formatMMSS(diffSecs);
+          } else {
+            disp.textContent = '00:00';
+          }
+        });
+        const remind25 = [];
+        const remind50 = [];
+        state.pupils.forEach(p => {
+          if (p.ended) return;
+          if (p.extraPct >= 25) {
+            const g25Time = p.baseNoExtra + p.restMins;
+            if (!p.warnedFlags.green25 && nowMins === g25Time) {
+              remind25.push(p.name);
+              p.warnedFlags.green25 = true;
+            }
+          }
+          if (p.extraPct >= 50) {
+            const g50Time = p.baseNoExtra + p.extra25Mins + p.restMins;
+            if (!p.warnedFlags.green50 && nowMins === g50Time) {
+              remind50.push(p.name);
+              p.warnedFlags.green50 = true;
+            }
+          }
+        });
+        if (remind25.length) alert(`Tell ${remind25.join(' and ')} to switch to a green pen for 25% extra time`);
+        if (remind50.length) alert(`Tell ${remind50.join(' and ')} to switch to a green pen for 50% extra time`);
+        const remindEnd = [];
+        state.pupils.forEach(p => {
+          if (p.ended) return;
+          const endWarn = p.currentEndMins - 5;
+          if (!p.warnedFlags.end && nowMins === endWarn) {
+            remindEnd.push(p.name);
+            p.warnedFlags.end = true;
+          }
+        });
+        if (remindEnd.length) alert(`Tell ${remindEnd.join(' and ')} they have 5 minutes remaining`);
+        const remindStop = [];
+        state.pupils.forEach(p => {
+          if (p.ended) return;
+          if (!p.warnedFlags.stop && nowMins === p.currentEndMins) {
+            remindStop.push(p.name);
+            p.warnedFlags.stop = true;
+          }
+        });
+        if (remindStop.length) {
+          alert(`Tell ${remindStop.join(' and ')} their exam has ended`);
+          remindStop.forEach(name => {
+            const idx = state.pupils.findIndex(x => x.name === name);
+            if (idx !== -1) markPupilEnded(idx, false);
+          });
+        }
+        const active = state.pupils.some(p => !p.ended);
+        if (!active) {
+          state.examEnded = true;
+          setTimeout(() => {
+            alert('The exam has ended');
+            showSummary();
+          }, 0);
+          clearInterval(state.warningTimer);
+        }
+      }
+    }
+
+    // Step 12: Show summary
+    function showSummary() {
+      document.getElementById('exam-container').style.display = 'none';
+      const tbody = document.querySelector('#summary-table tbody');
+      tbody.innerHTML = '';
+      state.pupils.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${p.name}</td>
+          <td>${formatHHMM(state.startMins)}</td>
+          <td>${formatHHMM(p.currentEndMins)}</td>
+          <td>${p.restMins}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      const summaryBreakBody = document.querySelector('#summary-break-log tbody');
+      summaryBreakBody.innerHTML = '';
+      state.breakLog.forEach(entry => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${entry.name}</td>
+          <td>${entry.start}</td>
+          <td>${entry.stop}</td>
+          <td>${entry.duration}</td>
+        `;
+        summaryBreakBody.appendChild(tr);
+      });
+      const summaryEarlyBody = document.querySelector('#summary-early-end-table tbody');
+      summaryEarlyBody.innerHTML = '';
+      state.earlyLog.forEach(entry => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${entry.name}</td>
+          <td>${entry.timestamp}</td>
+        `;
+        summaryEarlyBody.appendChild(tr);
+      });
+      document.getElementById('summary-container').style.display = 'block';
+      document.getElementById('new-exam-btn').onclick = () => {
+        document.getElementById('summary-container').style.display = 'none';
+        state = {
+          startMins: null,
+          endMins: null,
+          durationMins: null,
+          pupilNames: [],
+          pupils: [],
+          examStarted: false,
+          examEnded: false,
+          warningInterval: 1000,
+          warningTimer: null,
+          breakLog: [],
+          earlyLog: []
+        };
+        step2();
+      };
+    }
+  </script>
+</body>
+</html>
